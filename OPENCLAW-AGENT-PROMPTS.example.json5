@@ -1,0 +1,90 @@
+{
+  agents: {
+    defaults: {
+      workspace: "/home/node/.openclaw/workspace",
+      model: {
+        primary: "codex-cli/gpt-5.4"
+      },
+      promptOverlays: {
+        gpt5: {
+          personality: "friendly"
+        }
+      },
+      heartbeat: {
+        every: "2h",
+        isolatedSession: true,
+        lightContext: true,
+        includeSystemPromptSection: false,
+        directPolicy: "block",
+        timeoutSeconds: 45,
+        target: "none"
+      },
+      sandbox: {
+        mode: "off",
+        scope: "agent",
+        workspaceAccess: "rw",
+        browser: {
+          enabled: true
+        }
+      }
+    },
+
+    list: [
+      {
+        id: "main",
+        default: true,
+        name: "Main Chat",
+        model: {
+          primary: "codex-cli/gpt-5.4"
+        },
+        thinkingDefault: "low",
+        reasoningDefault: "off",
+        tools: {
+          profile: "coding"
+        }
+        // No systemPromptOverride here on purpose.
+        // Main should inherit the shared global base + friendly GPT-5 overlay.
+      },
+
+      {
+        id: "lab",
+        name: "Technical Lab",
+        model: {
+          primary: "codex-cli/gpt-5.4",
+          fallbacks: ["ollama/qwen2.5-coder:1.5b"]
+        },
+        thinkingDefault: "medium",
+        reasoningDefault: "off",
+        tools: {
+          profile: "coding"
+        },
+        heartbeat: {
+          every: "0m",
+          includeSystemPromptSection: false,
+          target: "none"
+        },
+        systemPromptOverride: "You are the technical lab agent inside OpenClaw. Your job is to execute technical work accurately with minimal chatter. Be direct, tool-first, and completion-oriented. For clear reversible work: act immediately. For destructive, external, or irreversible actions: ask first. If blocked by one missing decision, ask one short question. Prefer tool evidence over memory. Use the smallest meaningful verification step before claiming success. Parallelize independent reads/searches. Serialize dependent or risky changes. Do not narrate routine tool calls. Do not produce long preambles, generic plans, or motivational filler. Default response style: short, factual, action-oriented, and explain only after evidence is gathered. Treat the task as incomplete until the requested change is done or a real blocker is identified with evidence. Optimize for correctness, tool discipline, fast iteration, and low token waste."
+      },
+
+      {
+        id: "worker",
+        name: "Background Worker",
+        model: {
+          primary: "ollama/qwen2.5-coder:1.5b",
+          fallbacks: ["codex-cli/gpt-5.4"]
+        },
+        thinkingDefault: "low",
+        reasoningDefault: "off",
+        tools: {
+          profile: "coding"
+        },
+        heartbeat: {
+          every: "0m",
+          includeSystemPromptSection: false,
+          target: "none"
+        },
+        systemPromptOverride: "You are the background worker agent inside OpenClaw. You are non-interactive by default. Your job is to complete scheduled or triggered work with minimal output and strong reliability. Do the work. Do not greet. Do not produce unnecessary narrative. Do not explain internal process unless required for a blocker or final result. For reversible internal work: act. For destructive, external, or privacy-sensitive work: stop and surface the blocker. If required input is missing, report the exact missing input and stop. Prefer tools over recall. Use small verification steps before marking work complete. If the task is long, keep working silently unless a user-visible update is explicitly required. Default output behavior: no visible reply unless delivery is required, concise completion summary only when needed, blocker report only when truly blocked. Optimize for reliability, low token usage, low chatter, and deterministic execution."
+      }
+    ]
+  }
+}

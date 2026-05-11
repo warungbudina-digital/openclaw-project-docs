@@ -1,0 +1,146 @@
+{
+  "name": "viral_editor_http_nodes",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger-1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"job_id\": \"render_{{$now.toFormat('yyyyLLdd_HHmmss')}}\",\n  \"trace_id\": \"wf_{{$execution.id}}\",\n  \"requested_by\": \"n8n-worker\",\n  \"request_version\": \"2026-05-11.v1\",\n  \"source_video_path\": \"/data/input/source.mp4\",\n  \"analysis\": {{$json.analysis}},\n  \"preset\": {\n    \"platform\": \"tiktok\",\n    \"target_aspect_ratio\": \"9:16\",\n    \"target_duration_sec\": 45,\n    \"max_scenes\": 8,\n    \"prefer_hook_strength\": true,\n    \"prefer_beat_sync\": true,\n    \"allow_reorder\": false,\n    \"caption_mode\": \"plan_only\",\n    \"add_cta\": true,\n    \"title_text\": \"Belajar kripto dari nol\",\n    \"cta_text\": \"Save video ini\"\n  },\n  \"dry_run\": false,\n  \"output_path\": \"/data/output/render_{{$execution.id}}/final.mp4\"\n}"
+      },
+      "id": "set-production-envelope",
+      "name": "Set Production Envelope",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://{{ $env.RENDER_HOST || 'render-host-private-ip' }}:9020/plan",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source_video_path\": $json.source_video_path,\n  \"analysis\": $json.analysis,\n  \"preset\": $json.preset\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": false
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "http-plan",
+      "name": "HTTP Plan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"job_id\": $item(0).$node[\"Set Production Envelope\"].json.job_id,\n  \"trace_id\": $item(0).$node[\"Set Production Envelope\"].json.trace_id,\n  \"requested_by\": $item(0).$node[\"Set Production Envelope\"].json.requested_by,\n  \"request_version\": $item(0).$node[\"Set Production Envelope\"].json.request_version,\n  \"source_video_path\": $item(0).$node[\"Set Production Envelope\"].json.source_video_path,\n  \"analysis\": $item(0).$node[\"Set Production Envelope\"].json.analysis,\n  \"preset\": $item(0).$node[\"Set Production Envelope\"].json.preset,\n  \"plan\": $json,\n  \"dry_run\": false,\n  \"output_path\": $item(0).$node[\"Set Production Envelope\"].json.output_path\n}"
+      },
+      "id": "set-render-payload",
+      "name": "Set Render Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1000,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://{{ $env.RENDER_HOST || 'render-host-private-ip' }}:9020/render",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source_video_path\": $json.source_video_path,\n  \"analysis\": $json.analysis,\n  \"preset\": $json.preset,\n  \"plan\": $json.plan,\n  \"dry_run\": $json.dry_run,\n  \"output_path\": $json.output_path\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": false
+            }
+          },
+          "timeout": 3600000
+        }
+      },
+      "id": "http-render",
+      "name": "HTTP Render",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1260,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Production Envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Production Envelope": {
+      "main": [
+        [
+          {
+            "node": "HTTP Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Plan": {
+      "main": [
+        [
+          {
+            "node": "Set Render Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Render Payload": {
+      "main": [
+        [
+          {
+            "node": "HTTP Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

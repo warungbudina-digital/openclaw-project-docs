@@ -1,0 +1,25 @@
+services:
+  n8n-worker:
+    volumes:
+      - /home/warungbudina/partner-terbaru/openclaw/media_jobs/input:/data/input
+      - /home/warungbudina/partner-terbaru/openclaw/media_jobs/output:/data/output
+    networks:
+      - media_net
+
+  viral_analyzer:
+    volumes:
+      - /home/warungbudina/partner-terbaru/openclaw/media_jobs/input:/data/input
+      - /home/warungbudina/partner-terbaru/openclaw/media_jobs/output:/data/output
+    networks:
+      - media_net
+
+  viral_editor:
+    volumes:
+      - /home/warungbudina/partner-terbaru/openclaw/media_jobs/input:/data/input
+      - /home/warungbudina/partner-terbaru/openclaw/media_jobs/output:/data/output
+    networks:
+      - media_net
+
+networks:
+  media_net:
+    external: true

@@ -1,0 +1,17 @@
+[Unit]
+Description=Rclone Google Drive Union Mount
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/srv/rclone
+EnvironmentFile=/srv/rclone/.env.rclone
+ExecStart=/usr/bin/env bash /srv/rclone/mount-rclone-union.sh /srv/rclone/.env.rclone
+ExecStop=/bin/fusermount -uz /srv/rclone/mounts/union
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

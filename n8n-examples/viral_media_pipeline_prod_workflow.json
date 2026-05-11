@@ -1,0 +1,209 @@
+{
+  "name": "viral_media_pipeline_prod",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger-1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 320]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"job_id\": \"render_{{$now.toFormat('yyyyLLdd_HHmmss')}}\",\n  \"trace_id\": \"wf_{{$execution.id}}\",\n  \"source_url\": \"https://example.com/source.mp4\",\n  \"source_filename\": \"source.mp4\",\n  \"source_video_path\": \"/data/input/source.mp4\",\n  \"output_path\": \"/data/output/render_{{$execution.id}}/final.mp4\",\n  \"log_dir\": \"/data/output/render_{{$execution.id}}\",\n  \"notify_webhook_url\": \"https://example.com/webhook\",\n  \"analyzer_url\": \"http://{{ $env.ANALYZER_HOST || 'media-worker-private-ip' }}:9010/analyze\",\n  \"planner_url\": \"http://{{ $env.RENDER_HOST || 'media-worker-private-ip' }}:9020/plan\",\n  \"renderer_url\": \"http://{{ $env.RENDER_HOST || 'media-worker-private-ip' }}:9020/render\",\n  \"preset\": {\n    \"platform\": \"tiktok\",\n    \"target_aspect_ratio\": \"9:16\",\n    \"target_duration_sec\": 45,\n    \"max_scenes\": 8,\n    \"prefer_hook_strength\": true,\n    \"prefer_beat_sync\": true,\n    \"allow_reorder\": false,\n    \"caption_mode\": \"plan_only\",\n    \"add_cta\": true,\n    \"title_text\": \"Belajar kripto dari nol\",\n    \"cta_text\": \"Save video ini\"\n  }\n}"
+      },
+      "id": "set-job-config",
+      "name": "Set Job Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 320]
+    },
+    {
+      "parameters": {
+        "command": "=mkdir -p /data/input {{$json.log_dir}} && curl -L --fail --retry 3 {{$json.source_url}} -o {{$json.source_video_path}}"
+      },
+      "id": "download-source",
+      "name": "Download Source To Shared Input",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [740, 320],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$item(0).$node[\"Set Job Config\"].json.analyzer_url}}",
+        "sendBody": false,
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": false
+            }
+          },
+          "timeout": 3600000
+        }
+      },
+      "id": "http-analyze",
+      "name": "HTTP Analyze",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1020, 320],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"job_id\": $item(0).$node[\"Set Job Config\"].json.job_id,\n  \"trace_id\": $item(0).$node[\"Set Job Config\"].json.trace_id,\n  \"requested_by\": \"n8n-worker\",\n  \"request_version\": \"2026-05-11.v1\",\n  \"source_url\": $item(0).$node[\"Set Job Config\"].json.source_url,\n  \"source_filename\": $item(0).$node[\"Set Job Config\"].json.source_filename,\n  \"source_video_path\": $item(0).$node[\"Set Job Config\"].json.source_video_path,\n  \"output_path\": $item(0).$node[\"Set Job Config\"].json.output_path,\n  \"log_dir\": $item(0).$node[\"Set Job Config\"].json.log_dir,\n  \"notify_webhook_url\": $item(0).$node[\"Set Job Config\"].json.notify_webhook_url,\n  \"planner_url\": $item(0).$node[\"Set Job Config\"].json.planner_url,\n  \"renderer_url\": $item(0).$node[\"Set Job Config\"].json.renderer_url,\n  \"analysis\": $json,\n  \"preset\": $item(0).$node[\"Set Job Config\"].json.preset\n}"
+      },
+      "id": "set-envelope-after-analysis",
+      "name": "Set Envelope After Analysis",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1280, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.planner_url}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source_video_path\": $json.source_video_path,\n  \"analysis\": $json.analysis,\n  \"preset\": $json.preset\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": false
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "http-plan",
+      "name": "HTTP Plan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 240],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"job_id\": $item(0).$node[\"Set Envelope After Analysis\"].json.job_id,\n  \"trace_id\": $item(0).$node[\"Set Envelope After Analysis\"].json.trace_id,\n  \"requested_by\": $item(0).$node[\"Set Envelope After Analysis\"].json.requested_by,\n  \"request_version\": $item(0).$node[\"Set Envelope After Analysis\"].json.request_version,\n  \"source_url\": $item(0).$node[\"Set Envelope After Analysis\"].json.source_url,\n  \"source_filename\": $item(0).$node[\"Set Envelope After Analysis\"].json.source_filename,\n  \"source_video_path\": $item(0).$node[\"Set Envelope After Analysis\"].json.source_video_path,\n  \"output_path\": $item(0).$node[\"Set Envelope After Analysis\"].json.output_path,\n  \"log_dir\": $item(0).$node[\"Set Envelope After Analysis\"].json.log_dir,\n  \"notify_webhook_url\": $item(0).$node[\"Set Envelope After Analysis\"].json.notify_webhook_url,\n  \"renderer_url\": $item(0).$node[\"Set Envelope After Analysis\"].json.renderer_url,\n  \"analysis\": $item(0).$node[\"Set Envelope After Analysis\"].json.analysis,\n  \"preset\": $item(0).$node[\"Set Envelope After Analysis\"].json.preset,\n  \"plan\": $json,\n  \"dry_run\": false\n}"
+      },
+      "id": "set-render-payload",
+      "name": "Set Render Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1800, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.renderer_url}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source_video_path\": $json.source_video_path,\n  \"analysis\": $json.analysis,\n  \"preset\": $json.preset,\n  \"plan\": $json.plan,\n  \"dry_run\": $json.dry_run,\n  \"output_path\": $json.output_path\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": false
+            }
+          },
+          "timeout": 3600000
+        }
+      },
+      "id": "http-render",
+      "name": "HTTP Render",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2060, 240],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 15000
+    },
+    {
+      "parameters": {
+        "command": "=test -f {{$item(0).$node[\"Set Render Payload\"].json.output_path}} && echo output_saved || (echo output_missing && exit 1)"
+      },
+      "id": "verify-output",
+      "name": "Verify Output Saved",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [2320, 240],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"job_id\": $item(0).$node[\"Set Render Payload\"].json.job_id,\n  \"trace_id\": $item(0).$node[\"Set Render Payload\"].json.trace_id,\n  \"source_url\": $item(0).$node[\"Set Render Payload\"].json.source_url,\n  \"source_video_path\": $item(0).$node[\"Set Render Payload\"].json.source_video_path,\n  \"output_path\": $item(0).$node[\"Set Render Payload\"].json.output_path,\n  \"log_dir\": $item(0).$node[\"Set Render Payload\"].json.log_dir,\n  \"notify_webhook_url\": $item(0).$node[\"Set Render Payload\"].json.notify_webhook_url,\n  \"render_status\": $item(0).$node[\"HTTP Render\"].json.status,\n  \"manifest\": $item(0).$node[\"HTTP Render\"].json.manifest,\n  \"plan\": $item(0).$node[\"HTTP Render\"].json.plan,\n  \"saved_check\": $json.stdout,\n  \"finished_at\": \"{{$now.toISO()}}\",\n  \"log_b64\": \"{{ Buffer.from(JSON.stringify({ job_id: $item(0).$node[\\\"Set Render Payload\\\"].json.job_id, trace_id: $item(0).$node[\\\"Set Render Payload\\\"].json.trace_id, output_path: $item(0).$node[\\\"Set Render Payload\\\"].json.output_path, render_status: $item(0).$node[\\\"HTTP Render\\\"].json.status, manifest: $item(0).$node[\\\"HTTP Render\\\"].json.manifest, plan: $item(0).$node[\\\"HTTP Render\\\"].json.plan, finished_at: $now.toISO() }, null, 2)).toString(\\\"base64\\\") }}\"\n}"
+      },
+      "id": "set-success-log",
+      "name": "Set Success Log",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2580, 240]
+    },
+    {
+      "parameters": {
+        "command": "=mkdir -p {{$json.log_dir}} && printf '%s' '{{$json.log_b64}}' | base64 -d > {{$json.log_dir}}/run-success.json"
+      },
+      "id": "write-success-log",
+      "name": "Write Success Log",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [2840, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.notify_webhook_url}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"success\",\n  \"job_id\": $json.job_id,\n  \"trace_id\": $json.trace_id,\n  \"output_path\": $json.output_path,\n  \"render_status\": $json.render_status,\n  \"manifest\": $json.manifest,\n  \"finished_at\": $json.finished_at\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "http-notify-success",
+      "name": "HTTP Notify Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3100, 240]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": { "main": [[{ "node": "Set Job Config", "type": "main", "index": 0 }]] },
+    "Set Job Config": { "main": [[{ "node": "Download Source To Shared Input", "type": "main", "index": 0 }]] },
+    "Download Source To Shared Input": { "main": [[{ "node": "HTTP Analyze", "type": "main", "index": 0 }]] },
+    "HTTP Analyze": { "main": [[{ "node": "Set Envelope After Analysis", "type": "main", "index": 0 }]] },
+    "Set Envelope After Analysis": { "main": [[{ "node": "HTTP Plan", "type": "main", "index": 0 }]] },
+    "HTTP Plan": { "main": [[{ "node": "Set Render Payload", "type": "main", "index": 0 }]] },
+    "Set Render Payload": { "main": [[{ "node": "HTTP Render", "type": "main", "index": 0 }]] },
+    "HTTP Render": { "main": [[{ "node": "Verify Output Saved", "type": "main", "index": 0 }]] },
+    "Verify Output Saved": { "main": [[{ "node": "Set Success Log", "type": "main", "index": 0 }]] },
+    "Set Success Log": { "main": [[{ "node": "Write Success Log", "type": "main", "index": 0 }]] },
+    "Write Success Log": { "main": [[{ "node": "HTTP Notify Success", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

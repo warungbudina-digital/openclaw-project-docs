@@ -1,0 +1,66 @@
+{
+  "name": "viral_media_pipeline_error_handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "error-trigger-1",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [260, 320]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"failed_at\": \"{{$now.toISO()}}\",\n  \"notify_webhook_url\": \"https://example.com/webhook\",\n  \"failure_log_dir\": \"/data/output/error\",\n  \"failure_log_file\": \"/data/output/error/failure_{{$now.toFormat('yyyyLLdd_HHmmss')}}.json\",\n  \"log_b64\": \"{{ Buffer.from(JSON.stringify($json, null, 2)).toString(\\\"base64\\\") }}\"\n}"
+      },
+      "id": "set-failure-log",
+      "name": "Set Failure Log",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [520, 320]
+    },
+    {
+      "parameters": {
+        "command": "=mkdir -p {{$json.failure_log_dir}} && printf '%s' '{{$json.log_b64}}' | base64 -d > {{$json.failure_log_file}}"
+      },
+      "id": "write-failure-log",
+      "name": "Write Failure Log",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [780, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.notify_webhook_url}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"failure\",\n  \"failed_at\": $json.failed_at,\n  \"failure_log_file\": $json.failure_log_file\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "http-notify-failure",
+      "name": "HTTP Notify Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1040, 320]
+    }
+  ],
+  "connections": {
+    "Error Trigger": { "main": [[{ "node": "Set Failure Log", "type": "main", "index": 0 }]] },
+    "Set Failure Log": { "main": [[{ "node": "Write Failure Log", "type": "main", "index": 0 }]] },
+    "Write Failure Log": { "main": [[{ "node": "HTTP Notify Failure", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
